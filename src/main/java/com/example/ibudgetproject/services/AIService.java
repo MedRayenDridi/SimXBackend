@@ -1,5 +1,5 @@
 package com.example.ibudgetproject.services;
-
+/*
 import com.example.ibudgetproject.entities.Transactions.SimTransactions;
 import com.example.ibudgetproject.entities.User.FinancialKnowledgeLevel;
 import com.example.ibudgetproject.entities.User.Tone;
@@ -291,3 +291,5 @@ public class AIService {
     }
 
 }
+*/
+ 

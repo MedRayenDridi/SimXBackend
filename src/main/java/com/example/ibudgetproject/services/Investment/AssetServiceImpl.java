@@ -32,12 +32,11 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
 public class AssetServiceImpl implements AssetService {
 
-    private static final int SIMULATIONS = 10000; // Nombre de simulations Monte Carlo
+    private static final int SIMULATIONS = 10000;
     private static final double CONFIDENCE_LEVEL = 0.95;
 
     @Autowired
@@ -47,13 +46,21 @@ public class AssetServiceImpl implements AssetService {
     @Autowired
     private ObjectMapper objectMapper;
 
+
+
+
+
+    // ✅ FIXED: Now accepts buyPrice as parameter
     @Override
     public Asset createAsset(User user, Coin coin, double quantity) {
         Asset asset = new Asset();
         asset.setUser(user);
         asset.setCoin(coin);
         asset.setQuantity(quantity);
+        // ✅ CRITICAL FIX: Use current price as buy price at time of purchase
         asset.setBuyPrice(coin.getCurrentPrice());
+
+        System.out.println("✓ Asset created: " + coin.getSymbol() + " | Qty: " + quantity + " | Buy Price: " + coin.getCurrentPrice());
         return assetRepository.save(asset);
     }
 
@@ -76,7 +83,30 @@ public class AssetServiceImpl implements AssetService {
     @Override
     public Asset updateAsset(Long assetId, double quantity) throws Exception {
         Asset oldAsset = getAssetById(assetId);
-        oldAsset.setQuantity(quantity);
+
+        // ✅ CRITICAL FIX: Calculate weighted average buy price when adding more
+        if (quantity > 0) {
+            double oldQuantity = oldAsset.getQuantity();
+            double oldBuyPrice = oldAsset.getBuyPrice();
+            double newBuyPrice = oldAsset.getCoin().getCurrentPrice();
+
+            // Weighted average: (oldQty * oldPrice + newQty * newPrice) / (oldQty + newQty)
+            double weightedAvgPrice = ((oldQuantity * oldBuyPrice) + (quantity * newBuyPrice)) / (oldQuantity + quantity);
+
+            oldAsset.setBuyPrice(weightedAvgPrice);
+            oldAsset.setQuantity(oldQuantity + quantity);
+
+            System.out.println("✓ Asset updated: " + oldAsset.getCoin().getSymbol() +
+                    " | New Qty: " + oldAsset.getQuantity() +
+                    " | Weighted Avg Buy Price: " + weightedAvgPrice);
+        } else {
+            // ✅ Selling: Keep the same buy price, just reduce quantity
+            oldAsset.setQuantity(oldAsset.getQuantity() + quantity); // quantity is negative for sells
+            System.out.println("✓ Asset sold: " + oldAsset.getCoin().getSymbol() +
+                    " | Remaining Qty: " + oldAsset.getQuantity() +
+                    " | Buy Price unchanged: " + oldAsset.getBuyPrice());
+        }
+
         return assetRepository.save(oldAsset);
     }
 
@@ -149,7 +179,6 @@ public class AssetServiceImpl implements AssetService {
         return new Mean().evaluate(returns) + new StandardDeviation().evaluate(returns) * new Random().nextGaussian();
     }
 
-
     private double[] fetchHistoricalPrices(String coinId) throws Exception {
         String url = "https://api.coingecko.com/api/v3/coins/" + coinId + "/market_chart?vs_currency=usd&days=30";
         RestTemplate restTemplate = new RestTemplate();
@@ -213,12 +242,10 @@ public class AssetServiceImpl implements AssetService {
                     .mapToDouble(r -> new Mean().evaluate(r)).toArray();
             RealMatrix covarianceMatrix = new Covariance(returns).getCovarianceMatrix();
 
-            // Ajout d'un bruit numérique sur la diagonale
             for (int i = 0; i < covarianceMatrix.getRowDimension(); i++) {
                 covarianceMatrix.addToEntry(i, i, 1e-10);
             }
 
-            // --- OPTIMISATION AVEC CMA-ES ---
             CMAESOptimizer optimizer = new CMAESOptimizer(
                     10000, 1e-9, true, 10, 0, new MersenneTwister(), false, null
             );
@@ -227,12 +254,11 @@ public class AssetServiceImpl implements AssetService {
                     -computeSharpeRatio(weights, meanReturns, covarianceMatrix)
             );
 
-            // Définition des bornes valides (pas de zéro)
             double[] lowerBound = new double[n];
             double[] upperBound = new double[n];
             double[] initialGuessArray = new double[n];
 
-            Arrays.fill(lowerBound, 0.01);  // Minimum 1% pour éviter les erreurs
+            Arrays.fill(lowerBound, 0.01);
             Arrays.fill(upperBound, 1.0);
             Arrays.fill(initialGuessArray, 1.0 / n);
 
@@ -247,7 +273,6 @@ public class AssetServiceImpl implements AssetService {
                     initialGuess
             );
 
-            // Normalisation des poids
             double[] optimizedWeights = result.getPoint();
             double sum = Arrays.stream(optimizedWeights).sum();
             for (int i = 0; i < optimizedWeights.length; i++) {
@@ -265,7 +290,6 @@ public class AssetServiceImpl implements AssetService {
                     .body(Map.of("error", e.getMessage()));
         }
     }
-
 
     private double[] fetchHistoricalReturns(String coinId) {
         try {
@@ -295,9 +319,9 @@ public class AssetServiceImpl implements AssetService {
         double portfolioRisk = Math.sqrt(variance);
         return portfolioReturn / portfolioRisk;
     }
+
     @Override
     public Map<String, Double> calculatePortfolioPerformance(Long userId, int days) {
-
         List<Asset> assets = assetRepository.findByUser_UserId(userId);
 
         if (assets.isEmpty()) {
@@ -318,9 +342,8 @@ public class AssetServiceImpl implements AssetService {
         double meanReturn = new Mean().evaluate(portfolioReturns);
         double volatility = new StandardDeviation().evaluate(portfolioReturns);
 
-        // Adjust for monthly data (not annualizing)
-        double monthlyMeanReturn = meanReturn * (30.0 / days);  // Approximate 30 days in a month
-        double monthlyVolatility = volatility * Math.sqrt(30.0 / days);  // Adjust for monthly volatility
+        double monthlyMeanReturn = meanReturn * (30.0 / days);
+        double monthlyVolatility = volatility * Math.sqrt(30.0 / days);
 
         Map<String, Double> performance = new HashMap<>();
         performance.put("monthlyMeanReturn", monthlyMeanReturn);
@@ -331,7 +354,7 @@ public class AssetServiceImpl implements AssetService {
 
     private double computeReturn(double[] historicalPrices) {
         if (historicalPrices.length < 2) {
-            return 0; // Ou une autre valeur par défaut
+            return 0;
         }
         double[] returns = new double[historicalPrices.length - 1];
         for (int i = 1; i < historicalPrices.length; i++) {
@@ -362,5 +385,4 @@ public class AssetServiceImpl implements AssetService {
             throw new Exception(e.getMessage());
         }
     }
-
 }

@@ -4,7 +4,7 @@ import com.example.ibudgetproject.DTO.User.*;
 import com.example.ibudgetproject.entities.User.FinancialKnowledgeLevel;
 import com.example.ibudgetproject.entities.User.Tone;
 import com.example.ibudgetproject.entities.User.User;
-import com.example.ibudgetproject.services.AIService;
+//import com.example.ibudgetproject.services.AIService;
 import com.example.ibudgetproject.services.User.ChatService;
 import com.example.ibudgetproject.services.User.Interfaces.IUserService;
 import jakarta.annotation.security.RolesAllowed;

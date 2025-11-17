@@ -1,8 +1,5 @@
 package com.example.ibudgetproject.entities.User;
 
-import com.example.ibudgetproject.entities.Savings.CompteEpargne;
-import com.example.ibudgetproject.entities.Transactions.SimCardAccount;
-import com.example.ibudgetproject.entities.Transactions.SimTransactions;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -158,36 +155,6 @@ public class User implements UserDetails, Principal {
 
 
     //rayen ----------------------------------------------------------------------------------------------------------
-    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private SimCardAccount simCardAccount;
-    @OneToMany(mappedBy = "sender", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<SimTransactions> sentTransactions;
-    @OneToMany(mappedBy = "receiver", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<SimTransactions> receivedTransactions;
-
-    public SimCardAccount getSimCardAccount() {
-        return simCardAccount;
-    }
-
-    public void setSimCardAccount(SimCardAccount simCardAccount) {
-        this.simCardAccount = simCardAccount;
-    }
-
-    public List<SimTransactions> getSentTransactions() {
-        return sentTransactions;
-    }
-
-    public void setSentTransactions(List<SimTransactions> sentTransactions) {
-        this.sentTransactions = sentTransactions;
-    }
-
-    public List<SimTransactions> getReceivedTransactions() {
-        return receivedTransactions;
-    }
-
-    public void setReceivedTransactions(List<SimTransactions> receivedTransactions) {
-        this.receivedTransactions = receivedTransactions;
-    }
 
     public String getPhoneNumber() {
         return phoneNumber;
@@ -195,9 +162,6 @@ public class User implements UserDetails, Principal {
 
 
     //amine--------------------------------------------------------
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
-    @JsonIgnore
-    private List<CompteEpargne> comptesEpargne = new ArrayList<>();
 
     //--------------loj
 
