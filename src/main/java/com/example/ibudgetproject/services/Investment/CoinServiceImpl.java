@@ -172,12 +172,11 @@ public class CoinServiceImpl implements CoinService {
     }
 
     // Cache market chart for 5 minutes (longer because charts don't change as often)
-    @Cacheable(value = "marketChart", key = "#coinId + '_' + #days")
+    @Cacheable(value = "marketChart", key = "#coinId + '_' + #interval + '_' + #limit")
     @Override
-    public String getMarketChart(String coinId, int days) throws Exception {
+    public String getMarketChart(String coinId, String interval, int limit) throws Exception {
         String symbol = coinId.toUpperCase() + "USDT";
-        String interval = days <= 1 ? "1h" : "1d";
-        String url = "https://api.binance.com/api/v3/klines?symbol=" + symbol + "&interval=" + interval + "&limit=" + (days * 24);
+        String url = "https://api.binance.com/api/v3/klines?symbol=" + symbol + "&interval=" + interval + "&limit=" + limit;
 
         RestTemplate restTemplate = new RestTemplate();
         try {
@@ -186,16 +185,36 @@ public class CoinServiceImpl implements CoinService {
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
 
             JsonNode klines = objectMapper.readTree(response.getBody());
-            Map<String, List<List<Double>>> result = new HashMap<>();
+            List<Map<String, Object>> candles = new ArrayList<>();
             List<List<Double>> prices = new ArrayList<>();
 
             for (JsonNode kline : klines) {
+                Map<String, Object> candle = new HashMap<>();
+                long openTime = kline.get(0).asLong();
+                double open = kline.get(1).asDouble();
+                double high = kline.get(2).asDouble();
+                double low = kline.get(3).asDouble();
+                double close = kline.get(4).asDouble();
+                double volume = kline.get(5).asDouble();
+
+                candle.put("time", openTime);
+                candle.put("open", open);
+                candle.put("high", high);
+                candle.put("low", low);
+                candle.put("close", close);
+                candle.put("volume", volume);
+                candles.add(candle);
+
                 List<Double> point = new ArrayList<>();
-                point.add(kline.get(0).asDouble());
-                point.add(kline.get(4).asDouble());
+                point.add((double) openTime);
+                point.add(close);
                 prices.add(point);
             }
 
+            Map<String, Object> result = new HashMap<>();
+            result.put("symbol", symbol);
+            result.put("interval", interval);
+            result.put("candles", candles);
             result.put("prices", prices);
             return objectMapper.writeValueAsString(result);
         } catch (HttpClientErrorException | HttpServerErrorException e) {
